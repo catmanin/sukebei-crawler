@@ -1,0 +1,68 @@
+name: Sukebei Crawler Loop
+
+on:
+  workflow_dispatch:
+  # 每天运行一次作为兜底机制，以防自动触发中断
+  schedule:
+    - cron: '0 0 * * *'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    # 防止多个 Action 并发执行导致 git 冲突
+    concurrency:
+      group: crawler-loop
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install curl_cffi beautifulsoup4 requests
+
+      - name: Run Crawler (1000 IDs batch)
+        env:
+          PROXY_URL: ${{ secrets.PROXY_URL }}
+        run: |
+          echo "Starting crawler batch..."
+          if [ -n "$PROXY_URL" ]; then
+            python aws_nyaa_crawler.py --workers 5 --batch-size 1000 --proxy "$PROXY_URL"
+          else
+            python aws_nyaa_crawler.py --workers 5 --batch-size 1000
+          fi
+
+      - name: Commit and Push changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add crawler_state.json nyaa_ec2_results.jsonl || true
+          
+          # Only commit and push if there are changes
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Auto-update: Crawler progress and results"
+            git push
+          fi
+
+      - name: Trigger next run after delay
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Waiting for 2 minutes before triggering the next run..."
+          sleep 120
+          gh workflow run "Sukebei Crawler Loop" --ref main
