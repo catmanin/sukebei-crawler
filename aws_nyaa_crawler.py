@@ -17,8 +17,8 @@ H = {
 BASE_URL = "https://sukebei.nyaa.si/view/{}"
 STATE_FILE = "crawler_state.json"
 
-DEFAULT_START = 12970
-DEFAULT_END = 4172147
+DEFAULT_START = 1399362
+DEFAULT_END = 2785754
 
 
 def parse_html(html, id_val):
