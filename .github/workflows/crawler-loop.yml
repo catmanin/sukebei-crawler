@@ -2,7 +2,6 @@ name: Sukebei Crawler Loop
 
 on:
   workflow_dispatch:
-  # 每天运行一次作为兜底机制，以防自动触发中断
   schedule:
     - cron: '0 0 * * *'
 
@@ -13,7 +12,6 @@ permissions:
 jobs:
   crawl:
     runs-on: ubuntu-latest
-    # 防止多个 Action 并发执行导致 git 冲突
     concurrency:
       group: crawler-loop
       cancel-in-progress: false
@@ -32,7 +30,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install curl_cffi beautifulsoup4 requests
+          pip install curl_cffi beautifulsoup4
 
       - name: Run Crawler (1100 IDs batch)
         env:
@@ -49,9 +47,8 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add crawler_state.json nyaa_ec2_results.jsonl || true
-          
-          # Only commit and push if there are changes
+          git add crawler_state.json nyaa_results_*.jsonl || true
+
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
@@ -63,6 +60,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Waiting for 1 minutes before triggering the next run..."
+          echo "Waiting 1 minute before triggering next run..."
           sleep 60
           gh workflow run "Sukebei Crawler Loop" --ref main
